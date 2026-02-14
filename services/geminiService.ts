@@ -18,45 +18,39 @@ export const analyzeCareer = async (inputs: ProfileInputs): Promise<{ data: Care
 
   const isAudit = !!inputs.roadmapState;
   const auditContext = isAudit 
-    ? `PROGRESS AUDIT MODE: The user has already started a roadmap. 
-       Current Task Completion State: ${JSON.stringify(inputs.roadmapState)}.
-       EVALUATE their progress and ADAPT the remaining roadmap. If they are excelling, suggest more advanced tasks. If they are stuck, suggest remedial resources.`
-    : "INITIAL PLANNING MODE: Architect a brand new path.";
+    ? `SYNC PROTOCOL ACTIVE: Evaluating current progress milestones. 
+       Current Synchronization: ${JSON.stringify(inputs.roadmapState)}.
+       RECALIBRATE trajectory. If the user is crushing it, unlock 'Ascension' tier tasks. If momentum is low, inject remedial 'Core' modules.`
+    : "INITIAL UPLINK: Architecting a new career ascension path.";
 
   const prompt = `
-    You are an Autonomous Career Strategy Agent. 
+    You are the 'Pathfinder AI'—a high-energy, tactical career architect. 
     ${auditContext}
 
-    CONSTRAINTS & CONTEXT:
-    - TARGET GOAL: ${inputs.dreamCareer}
-    - CURRENT LEVEL: ${inputs.experienceLevel}
-    - TIME COMMITMENT: ${inputs.weeklyCommitment} hours per week
-    - LINKEDIN: ${inputs.linkedinUrl || "Not provided"}
-    - GITHUB: ${inputs.githubUrl || "Not provided"}
+    TARGET SPECS:
+    - CAREER GOAL: ${inputs.dreamCareer}
+    - CURRENT TIER: ${inputs.experienceLevel}
+    - TEMPORAL BUDGET: ${inputs.weeklyCommitment} hrs/week
     
-    AGENTIC PLANNING RULES:
-    1. Plan tasks that are strictly calibrated to the ${inputs.experienceLevel} level.
-    2. Adjust durations in the "roadmap" to reflect a ${inputs.weeklyCommitment} hour/week pace.
-    3. Evaluate their current skills vs the goal and explain your reasoning in agentReasoning.
-    4. Search for the latest market shifts (2024-2025) using Google Search.
-    5. CRITICAL: Your output MUST be strictly valid JSON. 
-       - DO NOT include markdown formatting or backticks.
-       - DO NOT include trailing commas.
-       - Escape all double quotes within string values.
-       - Ensure every property name is quoted.
+    TACTICAL PLANNING RULES:
+    1. Calibrate objectives to Tier: ${inputs.experienceLevel}.
+    2. Pace modules based on ${inputs.weeklyCommitment} hrs/week.
+    3. Be encouraging but direct. Use terms like 'Uplink', 'Synchronization', 'XP Gain', and 'Tactical Objective'.
+    4. Search for 2024-2025 market trends using Google Search.
+    5. CRITICAL: Response MUST be pure, valid JSON.
 
     Return a JSON response with this schema:
     {
-      "currentAssessment": "string",
-      "marketOutlook": "string",
-      "skillsGap": [{"skill": "string", "current": 0-10, "required": 0-10}],
-      "roadmap": [{"title": "string", "duration": "string", "description": "string", "tasks": ["string"]}],
-      "projects": [{"title": "string", "description": "string", "difficulty": "Beginner|Intermediate|Advanced", "techStack": ["string"]}],
-      "learningResources": [{"title": "string", "platform": "string", "type": "Course|Article|Open Source|Certification", "url": "string"}],
-      "profileOptimization": {"linkedinTips": ["string"], "resumeTips": ["string"], "keywords": ["string"]},
-      "vibeCheck30Day": {"title": "string", "description": "string", "milestones": ["string"]},
-      "suggestedNextPaths": ["string"],
-      "agentReasoning": ["string explaining specific strategy choices and audit results if applicable"]
+      "currentAssessment": "High-energy tactical summary of their current status",
+      "marketOutlook": "Latest intel on market shifts",
+      "skillsGap": [{"skill": "Skill", "current": 0-10, "required": 0-10}],
+      "roadmap": [{"title": "Module Title", "duration": "e.g. 4 Weeks", "description": "High-level goal", "tasks": ["Specific tactical task"]}],
+      "projects": [{"title": "Project Codename", "description": "Mission brief", "difficulty": "Beginner|Intermediate|Advanced", "techStack": ["Stack"]}],
+      "learningResources": [{"title": "Intel Source", "platform": "Platform", "type": "Type", "url": "URL"}],
+      "profileOptimization": {"linkedinTips": ["Actionable tip"], "resumeTips": ["Actionable tip"], "keywords": ["Keyword"]},
+      "vibeCheck30Day": {"title": "Neural Rewire Goal", "description": "Mindset shift", "milestones": ["Day 7 milestone", "Day 15 milestone", "Day 30 milestone"]},
+      "suggestedNextPaths": ["Path"],
+      "agentReasoning": ["Pathfinder internal log 1", "Pathfinder internal log 2"]
     }
   `;
 
@@ -77,10 +71,7 @@ export const analyzeCareer = async (inputs: ProfileInputs): Promise<{ data: Care
     });
 
     const resultText = response.text?.trim() || "{}";
-    
-    // Attempt to clean the string if the model accidentally included markdown
     const cleanedJson = resultText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    
     const data = JSON.parse(cleanedJson) as CareerPath;
 
     const sources: GroundingSource[] = [];
@@ -98,10 +89,7 @@ export const analyzeCareer = async (inputs: ProfileInputs): Promise<{ data: Care
 
     return { data, sources };
   } catch (error: any) {
-    console.error("Gemini Analysis Error:", error);
-    if (error instanceof SyntaxError) {
-      throw new Error(`The AI produced a malformed response. This happens occasionally during deep reasoning. Please try clicking "Audit Progress" or "Assemble Roadmap" again. Error: ${error.message}`);
-    }
+    console.error("Pathfinder Error:", error);
     if (error.message?.includes("Requested entity was not found")) {
       throw new Error("API_KEY_RESET");
     }
