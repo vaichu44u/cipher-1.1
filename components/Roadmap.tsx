@@ -1,33 +1,28 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { RoadmapStep } from '../types';
 
 interface Props {
   steps: RoadmapStep[];
   nextPaths: string[];
+  checkedTasks: Record<string, boolean>;
+  onToggleTask: (phaseIndex: number, taskIndex: number) => void;
   onChooseNextPath: (path: string) => void;
+  onAuditProgress: (state: Record<string, boolean>) => void;
+  onResetProgress: () => void;
 }
 
-const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
-  // Create a unique key based on the roadmap content
-  const storageKey = `career_roadmap_progress_${btoa(steps[0]?.title || 'default').slice(0, 16)}`;
-
+const Roadmap: React.FC<Props> = ({ 
+  steps, 
+  nextPaths, 
+  checkedTasks, 
+  onToggleTask, 
+  onChooseNextPath, 
+  onAuditProgress,
+  onResetProgress
+}) => {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   
-  // Initialize state from localStorage
-  const [checkedTasks, setCheckedTasks] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(checkedTasks));
-  }, [checkedTasks, storageKey]);
-
   // Calculate global progress
   const totalTasks = steps.reduce((acc, step) => acc + step.tasks.length, 0);
   const totalChecked = Object.values(checkedTasks).filter(Boolean).length;
@@ -39,17 +34,6 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
   const phaseProgress = currentPhaseTasks.length > 0 
     ? (completedInCurrentPhase / currentPhaseTasks.length) * 100 
     : 0;
-
-  const toggleTask = (phaseIndex: number, taskIndex: number) => {
-    const key = `${phaseIndex}-${taskIndex}`;
-    setCheckedTasks(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const resetProgress = () => {
-    if (window.confirm("Are you sure you want to clear all progress for this roadmap?")) {
-      setCheckedTasks({});
-    }
-  };
 
   if (isAllComplete) {
     return (
@@ -67,7 +51,7 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
           
           <h4 className="text-3xl font-black text-white tracking-tight">Mission Accomplished</h4>
           <p className="text-slate-400 max-w-lg leading-relaxed">
-            You've successfully completed every milestone on your path. You are now fully prepared for your role as a <span className="text-emerald-400 font-bold">{steps[steps.length-1].title.split(' ').slice(-1)}</span>.
+            You've successfully completed every milestone on your path. You are now fully prepared for your role.
           </p>
 
           <div className="w-full pt-10 border-t border-slate-900 mt-10">
@@ -81,17 +65,11 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
                  >
                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Advanced Specialization</p>
                    <p className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">{path}</p>
-                   <div className="mt-4 flex items-center text-[10px] font-black text-slate-500 group-hover:text-white transition-colors">
-                     Begin New Roadmap
-                     <svg className="w-3 h-3 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                     </svg>
-                   </div>
                  </button>
                ))}
              </div>
              <button 
-              onClick={resetProgress}
+              onClick={onResetProgress}
               className="mt-8 text-[10px] font-black text-slate-600 hover:text-white uppercase tracking-widest transition-colors"
              >
                Review Previous Steps
@@ -104,7 +82,6 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
 
   return (
     <div className="space-y-6">
-      {/* Phase Navigation Tabs */}
       <div className="flex items-center space-x-2 overflow-x-auto pb-4 no-scrollbar border-b border-slate-800/50">
         {steps.map((_, index) => {
           const isPhaseComplete = steps[index].tasks.every((_, taskIdx) => checkedTasks[`${index}-${taskIdx}`]);
@@ -131,15 +108,12 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
         })}
       </div>
 
-      {/* Active Phase Card */}
       <div className="bg-slate-950 rounded-[2rem] border border-indigo-500/20 p-6 sm:p-10 shadow-2xl relative overflow-hidden group min-h-[480px] flex flex-col">
-        {/* Background Decorative Element */}
         <div className="absolute -top-6 -right-6 text-[10rem] font-black text-white opacity-[0.02] select-none pointer-events-none group-hover:opacity-[0.04] transition-opacity italic leading-none">
           {activeStepIndex + 1}
         </div>
 
         <div className="relative z-10 flex flex-col flex-grow">
-          {/* Header Section */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
@@ -175,29 +149,27 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
                  <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white">{Math.round(phaseProgress)}%</span>
                </div>
                <div className="pr-2">
-                  <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Phase Completion</span>
+                  <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Phase Progress</span>
                   <span className="block text-[10px] font-bold text-indigo-400">{completedInCurrentPhase}/{currentPhaseTasks.length} Done</span>
                </div>
             </div>
           </div>
 
-          {/* Description Section */}
           <div className="mb-8">
             <p className="text-slate-400 text-sm leading-relaxed max-w-2xl">
               {activeStep.description}
             </p>
           </div>
 
-          {/* Checklist Section */}
           <div className="space-y-3 flex-grow">
             <div className="flex items-center mb-4">
-              <h5 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Target Actions Checklist</h5>
+              <h5 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Execution Checklist</h5>
               <div className="ml-4 flex-grow border-t border-slate-900/50"></div>
               <button 
-                onClick={resetProgress}
-                className="ml-4 text-[8px] font-black text-slate-600 hover:text-indigo-400 uppercase tracking-widest transition-colors"
+                onClick={() => onAuditProgress(checkedTasks)}
+                className="ml-4 text-[8px] font-black text-indigo-400 hover:text-white uppercase tracking-widest transition-colors flex items-center"
               >
-                Reset Progress
+                Audit Strategy
               </button>
             </div>
             
@@ -207,7 +179,7 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
                 return (
                   <div 
                     key={i} 
-                    onClick={() => toggleTask(activeStepIndex, i)}
+                    onClick={() => onToggleTask(activeStepIndex, i)}
                     className={`flex items-start p-4 rounded-2xl border transition-all cursor-pointer group/item ${
                       isChecked 
                         ? 'bg-indigo-950/20 border-indigo-500/20 text-slate-400' 
@@ -220,7 +192,7 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
                         : 'border-slate-700 group-hover/item:border-indigo-400'
                     }`}>
                       {isChecked && (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={5} d="M5 13l4 4L19 7" />
                         </svg>
                       )}
@@ -234,24 +206,14 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
             </div>
           </div>
 
-          {/* Navigation Controls */}
           <div className="mt-12 flex justify-between items-center pt-8 border-t border-slate-900/80">
              <button 
                disabled={activeStepIndex === 0}
                onClick={() => setActiveStepIndex(prev => Math.max(0, prev - 1))}
                className="text-[10px] font-black text-slate-500 hover:text-white disabled:opacity-0 transition-all flex items-center py-2 px-4 rounded-xl hover:bg-slate-900 uppercase tracking-widest"
              >
-               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
-               </svg>
                Back
              </button>
-
-             <div className="flex items-center space-x-1">
-                {steps.map((_, i) => (
-                  <div key={i} className={`w-1 h-1 rounded-full transition-all ${i === activeStepIndex ? 'w-4 bg-indigo-500' : 'bg-slate-800'}`}></div>
-                ))}
-             </div>
 
              <button 
                disabled={activeStepIndex === steps.length - 1}
@@ -259,9 +221,6 @@ const Roadmap: React.FC<Props> = ({ steps, nextPaths, onChooseNextPath }) => {
                className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black py-3 px-8 rounded-2xl transition-all disabled:opacity-0 flex items-center shadow-xl shadow-indigo-600/10 uppercase tracking-widest"
              >
                Proceed
-               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
-               </svg>
              </button>
           </div>
         </div>

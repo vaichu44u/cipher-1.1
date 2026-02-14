@@ -5,7 +5,6 @@ import { CareerPath, ProfileInputs, GroundingSource } from "../types";
 export const analyzeCareer = async (inputs: ProfileInputs): Promise<{ data: CareerPath; sources: GroundingSource[] }> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Convert resume to base64 if it's a file
   let resumePart: any = { text: inputs.resumeText || "No resume text provided." };
   if (inputs.resumeFile) {
     const base64 = await fileToBase64(inputs.resumeFile);
@@ -17,45 +16,47 @@ export const analyzeCareer = async (inputs: ProfileInputs): Promise<{ data: Care
     };
   }
 
+  const isAudit = !!inputs.roadmapState;
+  const auditContext = isAudit 
+    ? `PROGRESS AUDIT MODE: The user has already started a roadmap. 
+       Current Task Completion State: ${JSON.stringify(inputs.roadmapState)}.
+       EVALUATE their progress and ADAPT the remaining roadmap. If they are excelling, suggest more advanced tasks. If they are stuck, suggest remedial resources.`
+    : "INITIAL PLANNING MODE: Architect a brand new path.";
+
   const prompt = `
-    You are an elite Career Strategy Consultant and Technical Recruiter.
-    Analyze the following professional profiles and create a comprehensive career roadmap for the user's dream career.
+    You are an Autonomous Career Strategy Agent. 
+    ${auditContext}
 
-    DREAM CAREER GOAL: ${inputs.dreamCareer}
-    LINKEDIN PROFILE: ${inputs.linkedinUrl || "Not provided"}
-    GITHUB PROFILE: ${inputs.githubUrl || "Not provided"}
+    CONSTRAINTS & CONTEXT:
+    - TARGET GOAL: ${inputs.dreamCareer}
+    - CURRENT LEVEL: ${inputs.experienceLevel}
+    - TIME COMMITMENT: ${inputs.weeklyCommitment} hours per week
+    - LINKEDIN: ${inputs.linkedinUrl || "Not provided"}
+    - GITHUB: ${inputs.githubUrl || "Not provided"}
     
-    RESUME DATA IS ATTACHED AS A DOCUMENT OR TEXT.
+    AGENTIC PLANNING RULES:
+    1. Plan tasks that are strictly calibrated to the ${inputs.experienceLevel} level.
+    2. Adjust durations in the "roadmap" to reflect a ${inputs.weeklyCommitment} hour/week pace.
+    3. Evaluate their current skills vs the goal and explain your reasoning in agentReasoning.
+    4. Search for the latest market shifts (2024-2025) using Google Search.
+    5. CRITICAL: Your output MUST be strictly valid JSON. 
+       - DO NOT include markdown formatting or backticks.
+       - DO NOT include trailing commas.
+       - Escape all double quotes within string values.
+       - Ensure every property name is quoted.
 
-    Use Google Search to research the latest hiring trends, required certifications, and project benchmarks for a ${inputs.dreamCareer} in the current year.
-
-    Return a strictly structured JSON response with the following schema:
+    Return a JSON response with this schema:
     {
-      "currentAssessment": "A paragraph summarizing their current professional standing relative to their dream career.",
-      "marketOutlook": "Current market demand and salary expectations for this role.",
-      "skillsGap": [
-        {"skill": "Skill Name", "current": 1-10, "required": 1-10}
-      ],
-      "roadmap": [
-        {"title": "Phase Name", "duration": "e.g. 3 months", "description": "Summary", "tasks": ["Task 1", "Task 2"]}
-      ],
-      "projects": [
-        {"title": "Project Idea", "description": "Detailed explanation", "difficulty": "Beginner|Intermediate|Advanced", "techStack": ["React", "Rust", "etc"]}
-      ],
-      "learningResources": [
-        {"title": "Course/Article Name", "platform": "Coursera|Udemy|Medium|GitHub", "type": "Course|Article|Open Source|Certification", "url": "URL if known or placeholder"}
-      ],
-      "profileOptimization": {
-        "linkedinTips": ["Actionable tip 1", "Actionable tip 2"],
-        "resumeTips": ["Actionable tip 1", "Actionable tip 2"],
-        "keywords": ["Keyword 1", "Keyword 2"]
-      },
-      "vibeCheck30Day": {
-        "title": "A catchy title for the 30-day reflection",
-        "description": "A reassuring summary of how the user should be feeling/thinking after 30 days of this plan.",
-        "milestones": ["Reflective milestone 1", "Reflective milestone 2"]
-      },
-      "suggestedNextPaths": ["Path 1 (e.g. Technical Architect)", "Path 2 (e.g. CTO)"]
+      "currentAssessment": "string",
+      "marketOutlook": "string",
+      "skillsGap": [{"skill": "string", "current": 0-10, "required": 0-10}],
+      "roadmap": [{"title": "string", "duration": "string", "description": "string", "tasks": ["string"]}],
+      "projects": [{"title": "string", "description": "string", "difficulty": "Beginner|Intermediate|Advanced", "techStack": ["string"]}],
+      "learningResources": [{"title": "string", "platform": "string", "type": "Course|Article|Open Source|Certification", "url": "string"}],
+      "profileOptimization": {"linkedinTips": ["string"], "resumeTips": ["string"], "keywords": ["string"]},
+      "vibeCheck30Day": {"title": "string", "description": "string", "milestones": ["string"]},
+      "suggestedNextPaths": ["string"],
+      "agentReasoning": ["string explaining specific strategy choices and audit results if applicable"]
     }
   `;
 
@@ -71,13 +72,17 @@ export const analyzeCareer = async (inputs: ProfileInputs): Promise<{ data: Care
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 4000 }
       },
     });
 
-    const resultText = response.text || "{}";
-    const data = JSON.parse(resultText) as CareerPath;
+    const resultText = response.text?.trim() || "{}";
+    
+    // Attempt to clean the string if the model accidentally included markdown
+    const cleanedJson = resultText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    
+    const data = JSON.parse(cleanedJson) as CareerPath;
 
-    // Extract grounding sources
     const sources: GroundingSource[] = [];
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     if (chunks) {
@@ -94,6 +99,9 @@ export const analyzeCareer = async (inputs: ProfileInputs): Promise<{ data: Care
     return { data, sources };
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
+    if (error instanceof SyntaxError) {
+      throw new Error(`The AI produced a malformed response. This happens occasionally during deep reasoning. Please try clicking "Audit Progress" or "Assemble Roadmap" again. Error: ${error.message}`);
+    }
     if (error.message?.includes("Requested entity was not found")) {
       throw new Error("API_KEY_RESET");
     }

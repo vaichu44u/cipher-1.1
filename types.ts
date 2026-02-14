@@ -46,6 +46,7 @@ export interface CareerPath {
     milestones: string[];
   };
   suggestedNextPaths: string[];
+  agentReasoning: string[];
 }
 
 export interface GroundingSource {
@@ -62,8 +63,11 @@ export interface AnalysisState {
 
 export interface ProfileInputs {
   dreamCareer: string;
+  experienceLevel: 'Entry' | 'Mid' | 'Senior';
+  weeklyCommitment: number;
   linkedinUrl: string;
   githubUrl: string;
   resumeFile: File | null;
   resumeText: string;
+  roadmapState?: Record<string, boolean>; // Used for auditing progress
 }
