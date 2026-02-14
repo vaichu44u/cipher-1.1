@@ -9,6 +9,7 @@ import { analyzeCareer } from './services/geminiService';
 import RadarChart from './components/RadarChart';
 import Roadmap from './components/Roadmap';
 import VibeCheckTree from './components/VibeCheckTree';
+import ProjectLab from './components/ProjectLab';
 import AgentLog from './components/AgentLog';
 import ApiKeyModal from './components/ApiKeyModal';
 
@@ -33,6 +34,7 @@ const App: React.FC = () => {
   // Checklist states
   const [checkedTasks, setCheckedTasks] = useState<Record<string, boolean>>({});
   const [checkedMilestones, setCheckedMilestones] = useState<Record<number, boolean>>({});
+  const [checkedProjects, setCheckedProjects] = useState<Record<number, boolean>>({});
 
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -47,6 +49,7 @@ const App: React.FC = () => {
           const parsed = JSON.parse(saved);
           setCheckedTasks(parsed.tasks || {});
           setCheckedMilestones(parsed.milestones || {});
+          setCheckedProjects(parsed.projects || {});
         } catch (e) {
           console.error("Failed to parse saved progress");
         }
@@ -59,19 +62,27 @@ const App: React.FC = () => {
       const storageKey = `career_roadmap_${btoa(state.result.roadmap[0]?.title || 'default').slice(0, 16)}`;
       localStorage.setItem(storageKey, JSON.stringify({
         tasks: checkedTasks,
-        milestones: checkedMilestones
+        milestones: checkedMilestones,
+        projects: checkedProjects
       }));
     }
-  }, [checkedTasks, checkedMilestones, state.result]);
+  }, [checkedTasks, checkedMilestones, checkedProjects, state.result]);
 
-  // Calculate completion ratio for the radar chart
+  // Calculate completion ratio for the radar chart (weighted between roadmap and projects)
   const completionRatio = useMemo(() => {
     if (!state.result) return 0;
-    const totalTasks = state.result.roadmap.reduce((acc, step) => acc + step.tasks.length, 0);
-    if (totalTasks === 0) return 0;
-    const checkedCount = Object.values(checkedTasks).filter(Boolean).length;
-    return checkedCount / totalTasks;
-  }, [checkedTasks, state.result]);
+    
+    // Weight: 60% roadmap, 40% projects
+    const roadmapTotal = state.result.roadmap.reduce((acc, step) => acc + step.tasks.length, 0);
+    const roadmapChecked = Object.values(checkedTasks).filter(Boolean).length;
+    const roadmapScore = roadmapTotal > 0 ? (roadmapChecked / roadmapTotal) * 0.6 : 0;
+
+    const projectsTotal = state.result.projects.length;
+    const projectsChecked = Object.values(checkedProjects).filter(Boolean).length;
+    const projectsScore = projectsTotal > 0 ? (projectsChecked / projectsTotal) * 0.4 : 0.4; // Default to 0.4 if no projects suggested
+
+    return roadmapScore + (projectsTotal > 0 ? projectsScore : 0);
+  }, [checkedTasks, checkedProjects, state.result]);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -111,10 +122,11 @@ const App: React.FC = () => {
     }
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    // Clear checklist states on new analysis (if not an audit)
+    
     if (!roadmapState && !customDreamCareer) {
       setCheckedTasks({});
       setCheckedMilestones({});
+      setCheckedProjects({});
     }
 
     try {
@@ -163,6 +175,10 @@ const App: React.FC = () => {
     setCheckedMilestones(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
+  const handleToggleProject = (index: number) => {
+    setCheckedProjects(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
   const copyKeywords = () => {
     if (state.result) {
       navigator.clipboard.writeText(state.result.profileOptimization.keywords.join(', '));
@@ -189,7 +205,7 @@ const App: React.FC = () => {
             <div className="hidden sm:block">
               <div className="px-3 py-1 rounded-full bg-slate-950 border border-slate-800 flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Growth Engine Sync Active</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Global Progress Sync</span>
               </div>
             </div>
           </div>
@@ -354,12 +370,12 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 space-y-8">
+              <div className="lg:col-span-2 space-y-12">
                 <div className="bg-slate-900 rounded-[2.5rem] p-10 border border-slate-800 shadow-xl overflow-hidden relative">
                   <div className="flex justify-between items-center mb-10">
                     <h3 className="text-2xl font-black text-white tracking-tight">Evolving Skills Discrepancy</h3>
                     <div className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-[10px] font-black text-indigo-400 uppercase">
-                      Progress: {Math.round(completionRatio * 100)}%
+                      Sync: {Math.round(completionRatio * 100)}%
                     </div>
                   </div>
                   <div className="bg-slate-950 rounded-3xl p-6">
@@ -373,20 +389,19 @@ const App: React.FC = () => {
                 <div className="bg-slate-900 rounded-[2.5rem] p-10 border border-slate-800 shadow-xl">
                   <div className="flex justify-between items-center mb-8">
                     <h3 className="text-2xl font-black text-white">Active Roadmap</h3>
-                    <div className="flex space-x-3">
-                       <button 
-                         onClick={() => {
-                            if(window.confirm("Pivoting will reset current progress. Continue?")) {
-                              setState({ isLoading: false, result: null, error: null, sources: [] });
-                              setCheckedTasks({});
-                              setCheckedMilestones({});
-                            }
-                         }}
-                         className="text-[10px] font-black text-slate-500 hover:text-white transition-colors bg-slate-950 px-4 py-2 rounded-xl border border-slate-800"
-                       >
-                         Pivot Path
-                       </button>
-                    </div>
+                    <button 
+                      onClick={() => {
+                        if(window.confirm("Pivoting will reset current progress. Continue?")) {
+                          setState({ isLoading: false, result: null, error: null, sources: [] });
+                          setCheckedTasks({});
+                          setCheckedMilestones({});
+                          setCheckedProjects({});
+                        }
+                      }}
+                      className="text-[10px] font-black text-slate-500 hover:text-white transition-colors bg-slate-950 px-4 py-2 rounded-xl border border-slate-800"
+                    >
+                      Pivot Path
+                    </button>
                   </div>
                   <Roadmap 
                     steps={state.result?.roadmap || []} 
@@ -402,6 +417,14 @@ const App: React.FC = () => {
                     }}
                   />
                 </div>
+
+                {state.result?.projects && state.result.projects.length > 0 && (
+                  <ProjectLab 
+                    projects={state.result.projects}
+                    checkedProjects={checkedProjects}
+                    onToggleProject={handleToggleProject}
+                  />
+                )}
               </div>
             </div>
           </div>
