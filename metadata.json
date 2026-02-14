@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Career Copilot AI",
+  "description": "An AI-powered career assistant that analyzes your professional profiles and resume to build a personalized roadmap to your dream career.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
